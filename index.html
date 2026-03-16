@@ -13,15 +13,17 @@
 <meta property="og:url" content="https://code-bary.github.io/habit-grid/">
 <meta property="og:title" content="HabitGrid — Build Your Habits with Ease">
 <meta property="og:description" content="Generate a professional monthly habit tracker in seconds. No complex setup—just enter your goals and track your growth visually.">
-<meta property="og:image" content=""> <meta property="twitter:card" content="summary_large_image">
+<meta property="og:image" content="">
+<meta property="twitter:card" content="summary_large_image">
 <meta property="twitter:url" content="https://code-bary.github.io/habit-grid/">
 <meta property="twitter:title" content="HabitGrid — Minimalist Monthly Habit Tracker">
 <meta property="twitter:description" content="Generate a professional monthly habit tracker in seconds. No complex setup—just enter your goals and track your growth visually.">
 <meta property="twitter:image" content="">
 
-<link rel="canonical" href="https://code-bary.github.io/habit-grid/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect width='18' height='18' rx='4' fill='%23c8f560'/%3E%3Crect x='2' y='2' width='6' height='6' rx='1.5' fill='%230f0f0f'/%3E%3Crect x='10' y='2' width='6' height='6' rx='1.5' fill='%230f0f0f' opacity='0.4'/%3E%3Crect x='2' y='10' width='6' height='6' rx='1.5' fill='%230f0f0f' opacity='0.4'/%3E%3Crect x='10' y='10' width='6' height='6' rx='1.5' fill='%230f0f0f' opacity='0.7'/%3E%3C/svg%3E">
 
-<title>Habit Tracker</title>
+<link rel="canonical" href="https://code-bary.github.io/HabitGrid/">
+<title>HabitGrid</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -460,6 +462,7 @@ const MONTH_DAYS = {
 const MONTH_ORDER = ['january','february','march','april','may','june',
                      'july','august','september','october','november','december'];
 const LS_HISTORY = 'habitgrid_history';
+const LS_ACTIVE  = 'active_tracker';
 
 let state = { month:'', days:0, habits:[], checked:{} };
 let chartInstance = null;
@@ -471,6 +474,18 @@ let currentView   = 'home';  // 'home' | 'tracker' | 'history'
 // ─────────────────────────────────────────────
 function init() {
   addHabitField();
+  // Restore active session if one exists
+  try {
+    const saved = localStorage.getItem(LS_ACTIVE);
+    if (saved) {
+      const entry = JSON.parse(saved);
+      if (entry && entry.month && entry.habits && entry.habits.length) {
+        state = { month: entry.month, days: entry.days, habits: [...entry.habits], checked: { ...entry.checked } };
+        showTracker();
+        return;
+      }
+    }
+  } catch(e) {}
   setView('home');
 }
 
@@ -489,7 +504,10 @@ function setView(v) {
 }
 
 function goBack() {
-  if (currentView === 'tracker') saveToHistory();
+  if (currentView === 'tracker') {
+    saveToHistory();
+    clearActiveSession();
+  }
   setView('home');
 }
 
@@ -545,9 +563,10 @@ function generateTracker() {
   const existing = history.find(h => h.month.toLowerCase() === month.toLowerCase());
   if (existing) {
     state = { month: existing.month, days: existing.days, habits: [...existing.habits], checked: { ...existing.checked } };
+    persist();
   } else {
     state = { month, days, habits, checked: {} };
-    saveToHistory();
+    persist();
   }
   showTracker();
 }
@@ -600,7 +619,7 @@ function toggle(hi, day, el) {
   const key = `${hi}_${day}`;
   if (el.checked) state.checked[key] = true;
   else delete state.checked[key];
-  saveToHistory();
+  persist();
   updateRow(hi);
   updateChart();
   updateStats();
@@ -703,7 +722,7 @@ function addNewHabit() {
   if (!name) { document.getElementById('newHabitInput').focus(); return; }
   const hi = state.habits.length;
   state.habits.push(name);
-  saveToHistory();
+  persist();
 
   const tbody = document.querySelector('#habitTable tbody');
   const tr    = document.createElement('tr');
@@ -772,7 +791,7 @@ function submitRename() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) { document.getElementById('renameInput').focus(); return; }
   state.habits[ctxTargetHi] = name;
-  saveToHistory();
+  persist();
   const tbody = document.querySelector('#habitTable tbody');
   if (tbody && tbody.children[ctxTargetHi])
     tbody.children[ctxTargetHi].querySelector('td.td-habit').textContent = name;
@@ -796,7 +815,7 @@ function submitDeleteHabit() {
     newChecked[`${h > hi ? h - 1 : h}_${dStr}`] = true;
   });
   state.checked = newChecked;
-  saveToHistory();
+  persist();
 
   const tbody = document.querySelector('#habitTable tbody');
   tbody.children[hi].remove();
@@ -837,6 +856,26 @@ function saveToHistory() {
   else history.push(entry);
   history.sort((a, b) => MONTH_ORDER.indexOf(a.month.toLowerCase()) - MONTH_ORDER.indexOf(b.month.toLowerCase()));
   persistHistory(history);
+}
+
+function saveActiveSession() {
+  if (!state.month || !state.habits.length) return;
+  localStorage.setItem(LS_ACTIVE, JSON.stringify({
+    month:   state.month,
+    days:    state.days,
+    habits:  [...state.habits],
+    checked: { ...state.checked }
+  }));
+}
+
+function clearActiveSession() {
+  localStorage.removeItem(LS_ACTIVE);
+}
+
+// Save both history + active session together
+function persist() {
+  saveToHistory();
+  saveActiveSession();
 }
 
 // ─────────────────────────────────────────────
@@ -894,6 +933,7 @@ function openHistoryTracker() {
   const entry = loadHistory()[histCtxIdx];
   if (!entry) return;
   state = { month: entry.month, days: entry.days, habits: [...entry.habits], checked: { ...entry.checked } };
+  saveActiveSession();
   histCtxIdx = null;
   showTracker();
 }
@@ -940,4 +980,4 @@ function dismissAllCtxMenus() { ['habitCtxMenu','histCtxMenu'].forEach(dismissCt
 init();
 </script>
 </body>
-  </html>
+</html>
