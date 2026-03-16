@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --border2: #333;
+    --text: #e8e8e6;
+    --text2: #888;
+    --text3: #555;
+    --accent: #c8f560;
+    --accent2: #a8d940;
+    --accent-dim: rgba(200, 245, 96, 0.12);
+    --accent-glow: rgba(200, 245, 96, 0.06);
+    --red: #ff6b6b;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  html { font-size: 16px; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+
+  .shell { max-width: 1100px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  /* ── Header ── */
+  header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 56px; gap: 16px; }
+  .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .logo { display: flex; flex-direction: column; gap: 4px; }
+  .logo-mark { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .logo-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 12px; font-family: var(--mono); color: var(--text3); letter-spacing: 0.5px; padding-left: 42px; }
+
+  /* Header buttons */
+  .hdr-btn {
+    display: none; align-items: center; gap: 8px;
+    background: transparent; border: 1px solid var(--border2); color: var(--text2);
+    font-family: var(--mono); font-size: 12px; padding: 8px 14px;
+    border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s;
+    letter-spacing: 0.3px; white-space: nowrap; flex-shrink: 0;
+  }
+  .hdr-btn svg { width: 14px; height: 14px; }
+  #historyBtn { display: flex; }
+  #historyBtn:hover, #backBtn:hover { border-color: var(--text2); color: var(--text); }
+  #newHabitBtn { background: var(--accent); border-color: var(--accent); color: #0f0f0f; font-weight: 700; }
+  #newHabitBtn:hover { background: var(--accent2); border-color: var(--accent2); }
+
+  /* ── Modals ── */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    z-index: 100; align-items: center; justify-content: center; padding: 24px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2); border-radius: 14px;
+    padding: 28px; width: 100%; max-width: 380px;
+    display: flex; flex-direction: column; gap: 20px; animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+  .modal-close {
+    width: 28px; height: 28px; background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text3); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .modal-close:hover { border-color: var(--border2); color: var(--text); }
+  .modal-close svg { width: 12px; height: 12px; }
+  .modal input[type="text"] {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text); font-family: var(--sans); font-size: 14px; padding: 12px 14px;
+    outline: none; transition: border-color 0.2s; width: 100%;
+  }
+  .modal input[type="text"]:focus { border-color: var(--accent); }
+  .modal input[type="text"]::placeholder { color: var(--text3); }
+  .modal-body-text { font-family: var(--mono); font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .modal-btn-row { display: flex; gap: 10px; }
+
+  /* ── Context Menu ── */
+  .ctx-menu {
+    position: fixed; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 4px; z-index: 300; min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5); animation: ctxIn 0.12s ease;
+  }
+  @keyframes ctxIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+  .ctx-item {
+    display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-radius: 5px;
+    font-size: 13px; font-family: var(--sans); font-weight: 600; color: var(--text2);
+    cursor: pointer; transition: background 0.12s, color 0.12s; user-select: none;
+  }
+  .ctx-item svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .ctx-item:hover { background: var(--surface); color: var(--text); }
+  .ctx-item.ctx-danger:hover { background: rgba(255,107,107,0.1); color: var(--red); }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: flex; align-items: center; gap: 7px; padding: 10px 16px;
+    border-radius: var(--radius-sm); font-family: var(--sans); font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: all 0.18s; border: none; letter-spacing: 0.1px;
+  }
+  .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border2); color: var(--text2); }
+  .btn-ghost:hover { border-color: var(--text2); color: var(--text); }
+  .btn-primary { background: var(--accent); color: #0f0f0f; font-weight: 700; }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 4px 20px rgba(200,245,96,0.25); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-danger { background: var(--red); color: #fff; font-weight: 700; }
+  .btn-danger:hover { background: #ff4f4f; transform: translateY(-1px); }
+  .btn-danger:active { transform: translateY(0); }
+
+  /* ── Setup ── */
+  #setupView { display: flex; flex-direction: column; gap: 32px; }
+  .setup-header { max-width: 480px; }
+  .setup-header h2 { font-size: 32px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 10px; }
+  .setup-header p { font-family: var(--mono); font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .setup-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 560px; display: flex; flex-direction: column; gap: 24px; }
+
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .field label { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; color: var(--text3); text-transform: uppercase; }
+  .field input[type="text"] { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--sans); font-size: 14px; padding: 12px 14px; outline: none; transition: border-color 0.2s; width: 100%; }
+  .field input[type="text"]:focus { border-color: var(--accent); }
+  .field input[type="text"]::placeholder { color: var(--text3); }
+
+  .habits-section { display: flex; flex-direction: column; gap: 12px; }
+  .habits-list { display: flex; flex-direction: column; gap: 8px; }
+  .habit-input-row { display: flex; gap: 8px; align-items: center; animation: slideIn 0.2s ease; }
+  @keyframes slideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+  .habit-input-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--sans); font-size: 14px; padding: 11px 14px; outline: none; transition: border-color 0.2s; }
+  .habit-input-row input:focus { border-color: var(--accent); }
+  .habit-input-row input::placeholder { color: var(--text3); }
+  .habit-idx { font-family: var(--mono); font-size: 11px; color: var(--text3); width: 20px; text-align: center; flex-shrink: 0; }
+  .remove-btn { width: 30px; height: 30px; background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text3); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .remove-btn:hover { border-color: var(--red); color: var(--red); }
+  .remove-btn svg { width: 12px; height: 12px; }
+  .empty-note { font-family: var(--mono); font-size: 12px; color: var(--text3); padding: 4px 0 0; }
+  .divider { height: 1px; background: var(--border); margin: 0; }
+
+  /* ── History View ── */
+  #historyView { display: none; flex-direction: column; gap: 32px; }
+  .history-page-header { max-width: 480px; }
+  .history-page-header h2 { font-size: 32px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 10px; }
+  .history-page-header p { font-family: var(--mono); font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .history-list-outer { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; max-width: 560px; }
+  .history-entry { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; transition: background 0.15s; }
+  .history-entry:last-child { border-bottom: none; }
+  .history-entry:hover { background: var(--surface2); }
+  .history-entry-icon { color: var(--accent); flex-shrink: 0; }
+  .history-entry-icon svg { width: 16px; height: 16px; display: block; }
+  .history-entry-label { flex: 1; font-size: 14px; font-weight: 600; letter-spacing: -0.1px; }
+  .history-entry-meta { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.3px; }
+  .history-entry-hint { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.3px; flex-shrink: 0; }
+  .history-empty-state { padding: 48px 24px; text-align: center; font-family: var(--mono); font-size: 13px; color: var(--text3); line-height: 1.8; }
+
+  /* ── Tracker View ── */
+  #trackerView { display: none; flex-direction: column; gap: 40px; }
+  .tracker-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .tracker-title { font-size: 28px; font-weight: 700; letter-spacing: -0.6px; }
+  .tracker-title span { color: var(--accent); }
+  .stats-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-val { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--accent); }
+  .stat-lbl { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.8px; text-transform: uppercase; }
+
+  .table-outer { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 0 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.8px; color: var(--text3); text-transform: uppercase; text-align: center; border-bottom: 1px solid var(--border); height: 38px; white-space: nowrap; }
+  thead th.th-habit { text-align: left; padding-left: 20px; min-width: 140px; position: sticky; left: 0; background: var(--surface); z-index: 2; }
+  thead th.th-progress { min-width: 110px; position: sticky; right: 0; background: var(--surface); z-index: 2; }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-glow); }
+  tbody td { padding: 0 8px; text-align: center; height: 52px; }
+  tbody td.td-habit { text-align: left; padding-left: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 1; cursor: pointer; user-select: none; }
+  tbody tr:hover td.td-habit { background: #1a1a16; }
+  tbody td.td-progress { position: sticky; right: 0; background: var(--surface); z-index: 1; min-width: 110px; padding: 0 16px; }
+  tbody tr:hover td.td-progress { background: #1a1a16; }
+
+  .cb-wrap { display: flex; align-items: center; justify-content: center; }
+  .cb-wrap input[type="checkbox"] { display: none; }
+  .cb-box { width: 22px; height: 22px; border: 1.5px solid var(--border2); border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; background: transparent; }
+  .cb-box:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .cb-wrap input:checked + .cb-box { background: var(--accent); border-color: var(--accent); }
+  .cb-box svg { width: 12px; height: 12px; opacity: 0; transform: scale(0.6); transition: all 0.15s; }
+  .cb-wrap input:checked + .cb-box svg { opacity: 1; transform: scale(1); }
+
+  .prog-wrap { display: flex; align-items: center; gap: 8px; }
+  .prog-bar { flex: 1; height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .prog-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s ease; min-width: 0; }
+  .prog-pct { font-family: var(--mono); font-size: 11px; color: var(--text2); min-width: 30px; text-align: right; }
+
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px 28px 20px; }
+  .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 8px; }
+  .chart-title { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
+  .chart-sub { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.3px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  @media (max-width: 640px) {
+    .shell { padding: 28px 16px 60px; }
+    header { margin-bottom: 36px; }
+    .setup-header h2, .history-page-header h2 { font-size: 24px; }
+    .setup-card { padding: 20px; }
+    .tracker-title { font-size: 22px; }
+    .chart-wrap { height: 160px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <div class="logo-icon">
+          <svg viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="2" width="6" height="6" rx="1.5" fill="#0f0f0f"/>
+            <rect x="10" y="2" width="6" height="6" rx="1.5" fill="#0f0f0f" opacity="0.4"/>
+            <rect x="2" y="10" width="6" height="6" rx="1.5" fill="#0f0f0f" opacity="0.4"/>
+            <rect x="10" y="10" width="6" height="6" rx="1.5" fill="#0f0f0f" opacity="0.7"/>
+          </svg>
+        </div>
+        <span class="logo-title">HabitGrid</span>
+      </div>
+      <div class="logo-sub">monthly habit tracker</div>
+    </div>
+    <div class="header-actions">
+      <button id="historyBtn" class="hdr-btn" onclick="showHistoryView()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10,10"/>
+        </svg>
+        History
+      </button>
+      <button id="backBtn" class="hdr-btn" onclick="goBack()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="10,3 5,8 10,13"/>
+        </svg>
+        Back
+      </button>
+      <button id="newHabitBtn" class="hdr-btn" onclick="openNewHabitModal()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>
+        </svg>
+        New Habit
+      </button>
+    </div>
+  </header>
+
+  <!-- Home / Setup -->
+  <div id="setupView">
+    <div class="setup-header">
+      <h2>Build your<br>monthly tracker.</h2>
+      <p>Enter a month and your habits.<br>We'll generate a clean tracking grid.</p>
+    </div>
+    <div class="setup-card">
+      <div class="field">
+        <label>Month</label>
+        <input type="text" id="monthInput" placeholder="e.g. January, February…" autocomplete="off">
+      </div>
+      <div class="divider"></div>
+      <div class="habits-section">
+        <div class="field"><label>Habits</label></div>
+        <div class="habits-list" id="habitsList"></div>
+        <p class="empty-note" id="emptyNote">No habits added yet.</p>
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="addHabitField()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/>
+            </svg>
+            Add Habit
+          </button>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <button class="btn btn-primary" onclick="generateTracker()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5,3 13,8 5,13"/>
+        </svg>
+        Generate Tracker
+      </button>
+    </div>
+  </div>
+
+  <!-- History Page -->
+  <div id="historyView">
+    <div class="history-page-header">
+      <h2>Tracker<br>History.</h2>
+      <p>All your saved monthly trackers.<br>Hold an entry to open or delete it.</p>
+    </div>
+    <div class="history-list-outer" id="historyListOuter"></div>
+  </div>
+
+  <!-- Tracker Dashboard -->
+  <div id="trackerView">
+    <div class="tracker-meta">
+      <div class="tracker-title" id="trackerTitle"></div>
+      <div class="stats-row">
+        <div class="stat"><span class="stat-val" id="statTotal">0</span><span class="stat-lbl">Completed</span></div>
+        <div class="stat"><span class="stat-val" id="statBest">—</span><span class="stat-lbl">Best Day</span></div>
+        <div class="stat"><span class="stat-val" id="statOverall">0%</span><span class="stat-lbl">Overall</span></div>
+      </div>
+    </div>
+    <div class="table-outer"><div class="table-scroll"><table id="habitTable"></table></div></div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title">Daily Completions</div><div class="chart-sub">habits completed per day</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="progressChart"></canvas></div>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Add New Habit -->
+<div class="modal-backdrop" id="newHabitModal" onclick="if(event.target===this)closeNewHabitModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add New Habit</span>
+      <button class="modal-close" onclick="closeNewHabitModal()">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+      </button>
+    </div>
+    <input type="text" id="newHabitInput" placeholder="e.g. Journaling, Stretching…" autocomplete="off" onkeydown="if(event.key==='Enter')addNewHabit()">
+    <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="addNewHabit()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+      Add Habit
+    </button>
+  </div>
+</div>
+
+<!-- Rename Habit -->
+<div class="modal-backdrop" id="renameModal" onclick="if(event.target===this)closeRenameModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Rename Habit</span>
+      <button class="modal-close" onclick="closeRenameModal()">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+      </button>
+    </div>
+    <input type="text" id="renameInput" placeholder="Habit name…" autocomplete="off" onkeydown="if(event.key==='Enter')submitRename()">
+    <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="submitRename()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3L11 2z"/></svg>
+      Update Habit
+    </button>
+  </div>
+</div>
+
+<!-- Delete Habit -->
+<div class="modal-backdrop" id="deleteHabitModal" onclick="if(event.target===this)closeDeleteHabitModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Delete Habit</span>
+      <button class="modal-close" onclick="closeDeleteHabitModal()">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+      </button>
+    </div>
+    <p class="modal-body-text">Delete this habit? This action cannot be undone.</p>
+    <div class="modal-btn-row">
+      <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="closeDeleteHabitModal()">Cancel</button>
+      <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="submitDeleteHabit()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,5 4,14 12,14 13,5"/><line x1="1" y1="5" x2="15" y2="5"/><path d="M6 5V3h4v2"/></svg>
+        Delete Habit
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Tracker -->
+<div class="modal-backdrop" id="deleteTrackerModal" onclick="if(event.target===this)closeDeleteTrackerModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Delete Tracker</span>
+      <button class="modal-close" onclick="closeDeleteTrackerModal()">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+      </button>
+    </div>
+    <p class="modal-body-text">Delete this tracker? This action cannot be undone.</p>
+    <div class="modal-btn-row">
+      <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="closeDeleteTrackerModal()">Cancel</button>
+      <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="submitDeleteTracker()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,5 4,14 12,14 13,5"/><line x1="1" y1="5" x2="15" y2="5"/><path d="M6 5V3h4v2"/></svg>
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Habit Row Context Menu -->
+<div class="ctx-menu" id="habitCtxMenu" style="display:none;">
+  <div class="ctx-item" onclick="openRenameModal()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-9 9H2v-3L11 2z"/></svg>
+    Rename Habit
+  </div>
+  <div class="ctx-item ctx-danger" onclick="openDeleteHabitModal()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,5 4,14 12,14 13,5"/><line x1="1" y1="5" x2="15" y2="5"/><path d="M6 5V3h4v2"/></svg>
+    Delete Habit
+  </div>
+</div>
+
+<!-- History Entry Context Menu -->
+<div class="ctx-menu" id="histCtxMenu" style="display:none;">
+  <div class="ctx-item" onclick="openHistoryTracker()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,3 13,8 5,13"/></svg>
+    Open Tracker
+  </div>
+  <div class="ctx-item ctx-danger" onclick="promptDeleteTracker()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,5 4,14 12,14 13,5"/><line x1="1" y1="5" x2="15" y2="5"/><path d="M6 5V3h4v2"/></svg>
+    Delete Tracker
+  </div>
+</div>
+
+<!-- ═══ SCRIPT ═══ -->
+<script>
+// ─────────────────────────────────────────────
+// Config & State
+// ─────────────────────────────────────────────
+const MONTH_DAYS = {
+  january:31,february:28,march:31,april:30,may:31,june:30,
+  july:31,august:31,september:30,october:31,november:30,december:31
+};
+const MONTH_ORDER = ['january','february','march','april','may','june',
+                     'july','august','september','october','november','december'];
+const LS_HISTORY = 'habitgrid_history';
+
+let state = { month:'', days:0, habits:[], checked:{} };
+let chartInstance = null;
+let habitCount    = 0;
+let currentView   = 'home';  // 'home' | 'tracker' | 'history'
+
+// ─────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────
+function init() {
+  addHabitField();
+  setView('home');
+}
+
+// ─────────────────────────────────────────────
+// View Switching
+// ─────────────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.getElementById('setupView').style.display   = v === 'home'    ? 'flex' : 'none';
+  document.getElementById('historyView').style.display = v === 'history' ? 'flex' : 'none';
+  document.getElementById('trackerView').style.display = v === 'tracker' ? 'flex' : 'none';
+
+  document.getElementById('historyBtn').style.display  = v === 'home'    ? 'flex' : 'none';
+  document.getElementById('backBtn').style.display     = (v === 'tracker' || v === 'history') ? 'flex' : 'none';
+  document.getElementById('newHabitBtn').style.display = v === 'tracker' ? 'flex' : 'none';
+}
+
+function goBack() {
+  if (currentView === 'tracker') saveToHistory();
+  setView('home');
+}
+
+// ─────────────────────────────────────────────
+// Home — Habit Form
+// ─────────────────────────────────────────────
+function addHabitField(value = '') {
+  habitCount++;
+  const list = document.getElementById('habitsList');
+  document.getElementById('emptyNote').style.display = 'none';
+  const row = document.createElement('div');
+  row.className = 'habit-input-row';
+  row.innerHTML = `
+    <span class="habit-idx">${list.children.length + 1}</span>
+    <input type="text" value="${escHtml(value)}" placeholder="Habit name…" autocomplete="off">
+    <button class="remove-btn" onclick="removeHabitField(this)" title="Remove">
+      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/>
+      </svg>
+    </button>`;
+  list.appendChild(row);
+  row.querySelector('input').focus();
+  updateIndices();
+}
+
+function removeHabitField(btn) {
+  btn.closest('.habit-input-row').remove();
+  updateIndices();
+  if (!document.getElementById('habitsList').children.length)
+    document.getElementById('emptyNote').style.display = '';
+}
+
+function updateIndices() {
+  document.querySelectorAll('#habitsList .habit-idx').forEach((el, i) => el.textContent = i + 1);
+}
+
+function getHabitInputs() {
+  return [...document.querySelectorAll('#habitsList .habit-input-row input')]
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
+function generateTracker() {
+  const month  = document.getElementById('monthInput').value.trim();
+  const habits = getHabitInputs();
+  if (!month)         { alert('Please enter a month name.'); return; }
+  const days = MONTH_DAYS[month.toLowerCase()];
+  if (!days)          { alert('Unrecognised month. Try "January", "February", etc.'); return; }
+  if (!habits.length) { alert('Add at least one habit.'); return; }
+
+  // Check if this month already exists in history and load it if so,
+  // otherwise start fresh
+  const history = loadHistory();
+  const existing = history.find(h => h.month.toLowerCase() === month.toLowerCase());
+  if (existing) {
+    state = { month: existing.month, days: existing.days, habits: [...existing.habits], checked: { ...existing.checked } };
+  } else {
+    state = { month, days, habits, checked: {} };
+    saveToHistory();
+  }
+  showTracker();
+}
+
+// ─────────────────────────────────────────────
+// Tracker Dashboard
+// ─────────────────────────────────────────────
+function showTracker() {
+  setView('tracker');
+  document.getElementById('trackerTitle').innerHTML =
+    `<span>${cap(state.month)}</span> — ${state.habits.length} habit${state.habits.length !== 1 ? 's' : ''}`;
+  buildTable();
+  buildChart();
+  updateStats();
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function buildTable() {
+  const table = document.getElementById('habitTable');
+  let head = '<thead><tr><th class="th-habit">Habit</th>';
+  for (let d = 1; d <= state.days; d++) head += `<th>${d}</th>`;
+  head += '<th class="th-progress">Progress</th></tr></thead>';
+
+  let body = '<tbody>';
+  state.habits.forEach((habit, hi) => {
+    body += `<tr><td class="td-habit">${escHtml(habit)}</td>`;
+    for (let d = 1; d <= state.days; d++) {
+      const chk = state.checked[`${hi}_${d}`] ? 'checked' : '';
+      body += `<td><label class="cb-wrap">
+        <input type="checkbox" ${chk} onchange="toggle(${hi},${d},this)">
+        <span class="cb-box"><svg viewBox="0 0 12 10" fill="none" stroke="#0f0f0f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 4.5,9 11,1"/></svg></span>
+      </label></td>`;
+    }
+    body += `<td class="td-progress"><div class="prog-wrap">
+      <div class="prog-bar"><div class="prog-fill" id="fill_${hi}" style="width:${calcPct(hi)}%"></div></div>
+      <span class="prog-pct" id="pct_${hi}">${calcPct(hi)}%</span>
+    </div></td></tr>`;
+  });
+  body += '</tbody>';
+  table.innerHTML = head + body;
+  initTableListeners();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggle(hi, day, el) {
+  const key = `${hi}_${day}`;
+  if (el.checked) state.checked[key] = true;
+  else delete state.checked[key];
+  saveToHistory();
+  updateRow(hi);
+  updateChart();
+  updateStats();
+}
+
+function calcPct(hi) {
+  let done = 0;
+  for (let d = 1; d <= state.days; d++) if (state.checked[`${hi}_${d}`]) done++;
+  return Math.round(done / state.days * 100);
+}
+
+function updateRow(hi) {
+  const pct = calcPct(hi);
+  const fill = document.getElementById(`fill_${hi}`);
+  const pctEl = document.getElementById(`pct_${hi}`);
+  if (fill)  fill.style.width  = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+}
+
+function updateStats() {
+  const total    = Object.keys(state.checked).length;
+  const possible = state.habits.length * state.days;
+  const overall  = possible ? Math.round(total / possible * 100) : 0;
+  let bestDay = 0, bestCount = 0;
+  for (let d = 1; d <= state.days; d++) {
+    const cnt = state.habits.filter((_, hi) => state.checked[`${hi}_${d}`]).length;
+    if (cnt > bestCount) { bestCount = cnt; bestDay = d; }
+  }
+  document.getElementById('statTotal').textContent   = total;
+  document.getElementById('statBest').textContent    = bestDay ? `Day ${bestDay}` : '—';
+  document.getElementById('statOverall').textContent = overall + '%';
+}
+
+function getDailyData() {
+  return Array.from({ length: state.days }, (_, i) => {
+    const d = i + 1;
+    return state.habits.filter((_, hi) => state.checked[`${hi}_${d}`]).length;
+  });
+}
+
+function buildChart() {
+  if (chartInstance) chartInstance.destroy();
+  const ctx  = document.getElementById('progressChart').getContext('2d');
+  const data = getDailyData();
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Array.from({ length: state.days }, (_, i) => `${i + 1}`),
+      datasets: [{
+        label: 'Habits Completed', data,
+        backgroundColor: data.map(v => v > 0 ? 'rgba(200,245,96,0.7)' : 'rgba(255,255,255,0.05)'),
+        borderColor: 'rgba(200,245,96,0.9)', borderWidth: 1, borderRadius: 3, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e1e1e', borderColor: '#2a2a2a', borderWidth: 1,
+          titleColor: '#888', bodyColor: '#e8e8e6',
+          titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 12 },
+          callbacks: {
+            title: items => `Day ${items[0].label}`,
+            label: item  => ` ${item.raw} habit${item.raw !== 1 ? 's' : ''} done`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 10 }, border: { color: 'transparent' } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555', font: { family: 'DM Mono', size: 10 }, stepSize: 1, callback: v => v % 1 === 0 ? v : '' }, min: 0, max: Math.max(state.habits.length, 1), border: { color: 'transparent' } }
+      }
+    }
+  });
+}
+
+function updateChart() {
+  if (!chartInstance) return;
+  const data = getDailyData();
+  chartInstance.data.datasets[0].data = data;
+  chartInstance.data.datasets[0].backgroundColor = data.map(v => v > 0 ? 'rgba(200,245,96,0.7)' : 'rgba(255,255,255,0.05)');
+  chartInstance.options.scales.y.max = Math.max(state.habits.length, 1);
+  chartInstance.update('none');
+}
+
+// ─────────────────────────────────────────────
+// Add New Habit (in tracker)
+// ─────────────────────────────────────────────
+function openNewHabitModal() {
+  document.getElementById('newHabitModal').classList.add('open');
+  setTimeout(() => document.getElementById('newHabitInput').focus(), 80);
+}
+function closeNewHabitModal() {
+  document.getElementById('newHabitModal').classList.remove('open');
+  document.getElementById('newHabitInput').value = '';
+}
+
+function addNewHabit() {
+  const name = document.getElementById('newHabitInput').value.trim();
+  if (!name) { document.getElementById('newHabitInput').focus(); return; }
+  const hi = state.habits.length;
+  state.habits.push(name);
+  saveToHistory();
+
+  const tbody = document.querySelector('#habitTable tbody');
+  const tr    = document.createElement('tr');
+  let cells   = `<td class="td-habit">${escHtml(name)}</td>`;
+  for (let d = 1; d <= state.days; d++) {
+    cells += `<td><label class="cb-wrap">
+      <input type="checkbox" onchange="toggle(${hi},${d},this)">
+      <span class="cb-box"><svg viewBox="0 0 12 10" fill="none" stroke="#0f0f0f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 4.5,9 11,1"/></svg></span>
+    </label></td>`;
+  }
+  cells += `<td class="td-progress"><div class="prog-wrap">
+    <div class="prog-bar"><div class="prog-fill" id="fill_${hi}" style="width:0%"></div></div>
+    <span class="prog-pct" id="pct_${hi}">0%</span>
+  </div></td>`;
+  tr.innerHTML = cells;
+  tr.style.animation = 'slideIn 0.22s ease';
+  tbody.appendChild(tr);
+
+  document.getElementById('trackerTitle').innerHTML =
+    `<span>${cap(state.month)}</span> — ${state.habits.length} habit${state.habits.length !== 1 ? 's' : ''}`;
+  updateChart();
+  updateStats();
+  closeNewHabitModal();
+}
+
+// ─────────────────────────────────────────────
+// Habit Long-Press (Rename / Delete)
+// ─────────────────────────────────────────────
+let ctxTargetHi  = null;
+let habitLPTimer = null;
+
+function initTableListeners() {
+  const table = document.getElementById('habitTable');
+  if (!table || table._lpAttached) return;
+  table._lpAttached = true;
+
+  const start = (e) => {
+    const td = e.target.closest('td.td-habit');
+    if (!td) return;
+    clearTimeout(habitLPTimer);
+    habitLPTimer = setTimeout(() => {
+      const tr    = td.closest('tr');
+      const tbody = tr.closest('tbody');
+      ctxTargetHi = [...tbody.children].indexOf(tr);
+      showCtxMenu('habitCtxMenu', e);
+    }, 500);
+  };
+  const cancel = () => clearTimeout(habitLPTimer);
+  table.addEventListener('mousedown',   start,  { passive: true });
+  table.addEventListener('touchstart',  start,  { passive: true });
+  table.addEventListener('mouseup',     cancel);
+  table.addEventListener('mouseleave',  cancel);
+  table.addEventListener('touchend',    cancel);
+  table.addEventListener('touchcancel', cancel);
+}
+
+function openRenameModal() {
+  dismissCtxMenu('habitCtxMenu');
+  if (ctxTargetHi === null) return;
+  document.getElementById('renameInput').value = state.habits[ctxTargetHi];
+  document.getElementById('renameModal').classList.add('open');
+  setTimeout(() => { const i = document.getElementById('renameInput'); i.focus(); i.select(); }, 80);
+}
+function closeRenameModal() { document.getElementById('renameModal').classList.remove('open'); }
+function submitRename() {
+  const name = document.getElementById('renameInput').value.trim();
+  if (!name) { document.getElementById('renameInput').focus(); return; }
+  state.habits[ctxTargetHi] = name;
+  saveToHistory();
+  const tbody = document.querySelector('#habitTable tbody');
+  if (tbody && tbody.children[ctxTargetHi])
+    tbody.children[ctxTargetHi].querySelector('td.td-habit').textContent = name;
+  document.getElementById('trackerTitle').innerHTML =
+    `<span>${cap(state.month)}</span> — ${state.habits.length} habit${state.habits.length !== 1 ? 's' : ''}`;
+  closeRenameModal();
+  ctxTargetHi = null;
+}
+
+function openDeleteHabitModal()  { dismissCtxMenu('habitCtxMenu'); document.getElementById('deleteHabitModal').classList.add('open'); }
+function closeDeleteHabitModal() { document.getElementById('deleteHabitModal').classList.remove('open'); }
+function submitDeleteHabit() {
+  const hi = ctxTargetHi;
+  if (hi === null) return;
+  state.habits.splice(hi, 1);
+  const newChecked = {};
+  Object.keys(state.checked).forEach(key => {
+    const [hStr, dStr] = key.split('_');
+    const h = parseInt(hStr, 10);
+    if (h === hi) return;
+    newChecked[`${h > hi ? h - 1 : h}_${dStr}`] = true;
+  });
+  state.checked = newChecked;
+  saveToHistory();
+
+  const tbody = document.querySelector('#habitTable tbody');
+  tbody.children[hi].remove();
+  [...tbody.children].forEach((tr, newHi) => {
+    const fill = tr.querySelector('[id^="fill_"]');
+    const pct  = tr.querySelector('[id^="pct_"]');
+    if (fill) fill.id = `fill_${newHi}`;
+    if (pct)  pct.id  = `pct_${newHi}`;
+    tr.querySelectorAll('input[type="checkbox"]').forEach((cb, di) => {
+      cb.onchange = function() { toggle(newHi, di + 1, this); };
+    });
+  });
+  state.habits.forEach((_, newHi) => updateRow(newHi));
+  updateChart();
+  updateStats();
+  document.getElementById('trackerTitle').innerHTML =
+    `<span>${cap(state.month)}</span> — ${state.habits.length} habit${state.habits.length !== 1 ? 's' : ''}`;
+  closeDeleteHabitModal();
+  ctxTargetHi = null;
+}
+
+// ─────────────────────────────────────────────
+// History — Storage
+// ─────────────────────────────────────────────
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; }
+  catch(e) { return []; }
+}
+function persistHistory(arr) { localStorage.setItem(LS_HISTORY, JSON.stringify(arr)); }
+
+function saveToHistory() {
+  if (!state.month || !state.habits.length) return;
+  const history = loadHistory();
+  const key     = state.month.toLowerCase();
+  const idx     = history.findIndex(h => h.month.toLowerCase() === key);
+  const entry   = { month: state.month, days: state.days, habits: [...state.habits], checked: { ...state.checked }, savedAt: Date.now() };
+  if (idx >= 0) history[idx] = entry;
+  else history.push(entry);
+  history.sort((a, b) => MONTH_ORDER.indexOf(a.month.toLowerCase()) - MONTH_ORDER.indexOf(b.month.toLowerCase()));
+  persistHistory(history);
+}
+
+// ─────────────────────────────────────────────
+// History — View & Interactions
+// ─────────────────────────────────────────────
+function showHistoryView() {
+  renderHistoryList();
+  setView('history');
+}
+
+function renderHistoryList() {
+  const container = document.getElementById('historyListOuter');
+  const history   = loadHistory();
+  if (!history.length) {
+    container.innerHTML = `<div class="history-empty-state">No trackers saved yet.<br>Generate a tracker to get started.</div>`;
+    return;
+  }
+  container.innerHTML = '';
+  history.forEach((entry, idx) => {
+    const div        = document.createElement('div');
+    div.className    = 'history-entry';
+    const possible   = entry.habits.length * entry.days;
+    const doneCount  = Object.keys(entry.checked).length;
+    const pct        = possible ? Math.round(doneCount / possible * 100) : 0;
+    div.innerHTML = `
+      <span class="history-entry-icon">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="12" height="11" rx="2"/>
+          <line x1="5" y1="1" x2="5" y2="5"/><line x1="11" y1="1" x2="11" y2="5"/>
+          <line x1="2" y1="7" x2="14" y2="7"/>
+        </svg>
+      </span>
+      <span class="history-entry-label">${cap(entry.month)} — Habit Tracker</span>
+      <span class="history-entry-meta">${entry.habits.length} habit${entry.habits.length !== 1 ? 's' : ''} · ${pct}%</span>
+      <span class="history-entry-hint">hold</span>`;
+
+    // Long-press
+    let lpTimer = null;
+    const start  = (e) => { lpTimer = setTimeout(() => { histCtxIdx = idx; showCtxMenu('histCtxMenu', e); }, 500); };
+    const cancel = () => clearTimeout(lpTimer);
+    div.addEventListener('mousedown',   start,  { passive: true });
+    div.addEventListener('touchstart',  start,  { passive: true });
+    div.addEventListener('mouseup',     cancel);
+    div.addEventListener('mouseleave',  cancel);
+    div.addEventListener('touchend',    cancel);
+    div.addEventListener('touchcancel', cancel);
+    container.appendChild(div);
+  });
+}
+
+let histCtxIdx = null;
+
+function openHistoryTracker() {
+  dismissCtxMenu('histCtxMenu');
+  const entry = loadHistory()[histCtxIdx];
+  if (!entry) return;
+  state = { month: entry.month, days: entry.days, habits: [...entry.habits], checked: { ...entry.checked } };
+  histCtxIdx = null;
+  showTracker();
+}
+
+function promptDeleteTracker() {
+  dismissCtxMenu('histCtxMenu');
+  document.getElementById('deleteTrackerModal').classList.add('open');
+}
+function closeDeleteTrackerModal() { document.getElementById('deleteTrackerModal').classList.remove('open'); }
+function submitDeleteTracker() {
+  if (histCtxIdx !== null) {
+    const history = loadHistory();
+    history.splice(histCtxIdx, 1);
+    persistHistory(history);
+    histCtxIdx = null;
+  }
+  closeDeleteTrackerModal();
+  renderHistoryList();
+}
+
+// ─────────────────────────────────────────────
+// Shared Context Menu Helpers
+// ─────────────────────────────────────────────
+function showCtxMenu(menuId, e) {
+  dismissAllCtxMenus();
+  const menu  = document.getElementById(menuId);
+  const touch = e.touches ? e.touches[0] : e;
+  let x = touch.clientX + 8, y = touch.clientY + 8;
+  menu.style.display = 'block';
+  const mw = menu.offsetWidth  || 160;
+  const mh = menu.offsetHeight || 90;
+  if (x + mw > window.innerWidth)  x = window.innerWidth  - mw - 8;
+  if (y + mh > window.innerHeight) y = y - mh - 16;
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+  setTimeout(() => document.addEventListener('click', dismissAllCtxMenus, { once: true }), 10);
+}
+function dismissCtxMenu(id)  { document.getElementById(id).style.display = 'none'; }
+function dismissAllCtxMenus() { ['habitCtxMenu','histCtxMenu'].forEach(dismissCtxMenu); }
+
+// ─────────────────────────────────────────────
+// Run
+// ─────────────────────────────────────────────
+init();
+</script>
+</body>
+  </html>
